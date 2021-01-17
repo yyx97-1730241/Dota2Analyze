@@ -1,0 +1,775 @@
+---
+title: "ECON424 Final PROJECT"
+author: "YUXIAO YE"
+date: "3/13/2020"
+output: 
+  html_document 
+---
+<style>
+        p {line-height: 2em;}
+</style>
+
+## **Table of Contents**
+
+**1. General Summary**  
+**2. Return Calculation and Sample Statistics**  
+**3. Value-at-Risk Calculations **  
+**4. Portfolio Theory**  
+**5. Asset Allocation**  
+
+## **1. General Summary**  
+
++ <font size=5 > Data Set:</font>  
+      This project looks at monthly closing prices from November 2015 to end of November 2020  
+  
++ <font size=5 >Introduction of five mutual fund:</font>  
+      1. **S&P 500 index(vfinx)**:  
+      The S&P 500, or just the S&P, is a stock market index that measures the stock performance of 500 large companies listed on stock exchanges in the United States.   
+      2. **European Stock Index(veurx)**:  
+      VEURX is also a stock market index that meansures the stock performance in the Europe  
+      3. **Emerging markets fund(veiex)**:  
+      refers to a fund that invests the majority of its assets in securities from countries with economies that are considered to be emerging.  
+      4. **Long term bond index(vbltx)**:  
+      This index fund has a diversified approach to bond investing and is low-cost. It provides broad exposure to U.S investment-grade bonds with maturities of more than 10 years. The fund invests about 60 percent of assets in corporate bonds and 40 percent in U.S. government bonds.  
+      5. **Short term bond index (vbisx)**:  
+      This index fund offers a low-cost, diversified approach to bond investing, providing broad exposure to U.S. investment-grade bonds with maturities from one to five years. Reflecting this goal, the fund invests about 30% of assets in corporate bonds and 70% in U.S.government bonds within that maturity range.  
+      6. **Pacific stock index (vpacx)**:  
+      This index fund provides investors low-cost exposure to companies in developed countries of the Pacific region. 
+
+
+    
+      
++ <font size=5 >Principal discoveries </font>  
+  + The S&P 500 index(vfinx), European Stock Index(veurx),Emerging markets fund(veiex), and Pacific stock index (vpacx)had price and returns increased rapidly in 2018 and Long term bondindex(vbltx) and Short term bond index (vbisx) had price increased sharply between 2016 and 2017.  
+  
+  + Only European Stock Index(veurx) looks NOT normally distributed, the rest of five assets look pretty normally distributed.  
+  
+  + The S&P 500 index(vfinx) has the highest average return and Short term bond index (vbisx) has the lowest average return. Also, Short term bond index (vbisx) has the lowest standard deviation. Emerging markets fund (veiex) has the highest standard deviation
+  
+  + Based on bootstrap analysis, the mean is not estimated as precise as the standard deviation.   
+  
+  + European Stock Index(veurx) and Emerging markets fund(veiex) are not doing very good job since they have low expected returns but a higher risk(Standard Deviation).    
+  
+  + Short term bond index (vbisx) has the highest sharpe ratio, Emerging markets fund(veiex) has the lowest sharpe ratio which indicates if you want to invest one asset. Short term bond index would be the best choice.
+  
+  + The S&P 500 index(vfinx), European Stock Index(veurx), Emerging markets fund(veiex), and Pacific stock index (vpacx) have strong positive linear relationships.  Long term bond index(vbltx) and Short term bond index (vbisx) have strong positive linear relationships.     
+  
+  + There is no clear evidence showing any negative linear relationship between the assets. Also, mutual funds cannot be shorted. Therefore it is difficult to make diversification  
+  
+  + Absolute value of 1% and 5% Value at Risk over one month horizon is biggest for Emerging markets fund and smallest for Short term bond index as well as for one year horizon   
+  
+  + The global minimum variance portfolio WITHOUT short sale has both higher expected return and deviation than the global minimum variance portfolio with short sale. However the 1% and 5% VaR of the global minimum variance portfolio is larger as well. So it is riskier too.  
+  
+  + The tangency portfolio with short sale has larger expected return and standard deviation and sharpe ratio than the tangency portfolio without short sale.  
+  
+  + When we have risk free assets, we are able to find the target portfolio  but less variance. The value at risk will be lower as well  
+  
+  + When we want to find a mutual fund portfolio with the target return, the target return rate should not exceed the highest return of the assets or it will be impossible to  achieve.     
+
+
+```{r include = FALSE}
+##Initalizing
+knitr::opts_chunk$set(echo=FALSE)
+options(digits=3, width=70)
+options("getSymbols.warning4.0"=FALSE)
+options(knitr.table.format = 'markdown')
+library(IntroCompFinR)
+library(PerformanceAnalytics)
+library(tseries)
+library(zoo)
+library(boot)
+library(corrplot)
+library(knitr)
+
+
+savePath="C:\\Users\\yyx88\\Desktop\\econ424"
+```
+
+
+```{r include = FALSE}
+##Loading Data
+asset.names = c("vfinx","veurx","veiex","vbltx","vbisx","vpacx")
+
+asset.fullname = c("S&P 500 index","European Stock Index","Emerging markets fund","Long term bond index","Short term bond index","Pacific stock index")
+
+start.date = "2014-11-01"
+end.date = "2019-11-30"
+
+vfinx.prices = get.hist.quote(instrument="vfinx", start=start.date,
+                             end=end.date, quote="AdjClose",
+                             provider="yahoo", origin="1970-01-01",
+                             compression="m", retclass="zoo")    
+veurx.prices = get.hist.quote(instrument="veurx", start=start.date,
+                             end=end.date, quote="AdjClose",
+                             provider="yahoo", origin="1970-01-01",
+                             compression="m", retclass="zoo")
+veiex.prices = get.hist.quote(instrument="veiex", start=start.date,
+                             end=end.date, quote="AdjClose",
+                             provider="yahoo", origin="1970-01-01",
+                             compression="m", retclass="zoo")
+vbltx.prices = get.hist.quote(instrument="vbltx", start=start.date,
+                             end=end.date, quote="AdjClose",
+                             provider="yahoo", origin="1970-01-01",
+                             compression="m", retclass="zoo")
+vbisx.prices = get.hist.quote(instrument="vbisx", start=start.date,
+                             end=end.date, quote="AdjClose",
+                             provider="yahoo", origin="1970-01-01",
+                             compression="m", retclass="zoo")
+vpacx.prices = get.hist.quote(instrument="vpacx", start=start.date,
+                             end=end.date, quote="AdjClose",
+                             provider="yahoo", origin="1970-01-01",
+                             compression="m", retclass="zoo")
+
+# change time indices to class yearmon, which is most appropriate for monthly data
+index(vfinx.prices) = as.yearmon(index(vfinx.prices))
+index(veurx.prices) = as.yearmon(index(veurx.prices))
+index(veiex.prices) = as.yearmon(index(veiex.prices))
+index(vbltx.prices) = as.yearmon(index(vbltx.prices))
+index(vbisx.prices) = as.yearmon(index(vbisx.prices))
+index(vpacx.prices) = as.yearmon(index(vpacx.prices))
+
+projectPrices.z = merge(vfinx.prices,veurx.prices,veiex.prices,vbltx.prices,
+                        vbisx.prices,vpacx.prices)
+# get the asset name
+colnames(projectPrices.z) = asset.names
+# create data.frame for downloading
+projectPrices.df = coredata(projectPrices.z)
+rownames(projectPrices.df) = as.character(index(projectPrices.z))
+
+```
+
+## 2. Return Calculation and Sample Statistics
++ ### **2.1 Monthly Pirces, Returns, and Equity Curve**
+```{r}
+## compute cc and simple returns
+projectReturns.z = diff(log(projectPrices.z))
+projectReturnsSimple.z = exp(projectReturns.z) - 1
+
+# create data.frame for downloading
+projectReturns.df = as.data.frame(coredata(projectReturns.z))
+rownames(projectReturns.df) = as.character(index(projectReturns.z))
+projectReturnsSimple.df = as.data.frame(coredata(projectReturnsSimple.z))
+rownames(projectReturnsSimple.df) = as.character(index(projectReturnsSimple.z))
+```
+
+
+```{r pressure, echo=FALSE}
+## Including Plots
+my.panel <- function(...) {
+  lines(...)
+  abline(h=0)
+}
+
+plot(projectPrices.z, col="blue", lwd=2,main = "Monthly Price")
+plot(projectReturns.z, panel=my.panel, col="blue", lwd=2,main = "Monthly Return")
+# plot growth of $1 over the five years using PerformanceAnalytics function
+# chart.CumReturns
+chart.CumReturns(projectReturnsSimple.z, wealth.index=TRUE, legend.loc="topleft", 
+                 lwd=2, main="growth of $1") 
+```
+
+### Expert Analysis:  
+First of all, according to the monthly price graphs from beginning November in 2015 to the end of November in 2019, all of the six stocks are doing a great job, because the stock price of November 2019 is higher than November 2015 for all of the stocks. There are some remarkable points that investors should pay attention to. In 2018,S&P 500 index(vfinx), European Stock Index(veurx) Emerging markets fund (veiex), and vpacxPacific stock index (vpacx) had obviously sharply increased their stock prices. The phenomenon could be caused by good performance by big tech companies like Microsoft, Facebook, Amazon, Apple, etc. Also, Trump Administration cut tax in 2018 which will also boost the stock market. Secondly, let us look at the Monthly Return graphs.S&P 500 index(vfinx), European Stock Index(veurx), Emerging markets fund (veiex), and Pacific stock index (vpacx) have similar trends on the return rate. Long term bond index (vbltx) and Short term bond index (vbisx) even show a stronger relationship. They both had a sharp drop in 2017 and a peak at the end of 2019. These can result in a high-interest rate and inflation rate in 2017 and less inflation rate and interest rate at the end of 2019. Third, we move to analyze the equity curve.  Based on the curve, we can conclude that the S & P 500 index(vfinx) will offer you the most return(if you invest $1 in Dec 2014, you will get $1.6 in Nov2019) and Short term bond index (vbisx) will offer the least return($1 grows to  $1.1 in five years). The results are fairly based on reality due to the promotion of high-tech companies such as Apple and Amazon. More and more people are using iPhone and online shopping. Although Short term bond index (vbisx) has the least return, it is least fluctuating one as well which means the least risk. Therefore it suits risk-averse investors. 
+
++ ### **2.2 Four Panel Diagnostic plots**
+```{r}
+fourPanelPlot(projectReturns.z[, "vfinx", drop=FALSE])
+fourPanelPlot(projectReturns.z[, "veurx", drop=FALSE])
+fourPanelPlot(projectReturns.z[, "veiex", drop=FALSE])
+fourPanelPlot(projectReturns.z[, "vbltx", drop=FALSE])
+fourPanelPlot(projectReturns.z[, "vbisx", drop=FALSE])
+fourPanelPlot(projectReturns.z[, "vpacx", drop=FALSE])
+
+
+```
+
+```{r}
+ret.mat = coredata(projectReturns.z)
+boxplot(ret.mat, main="Vanguard Returns", col="cornflowerblue")
+```
+
+### Expert Analysis:  
+Let us analyze the stocks individually.  
+**Vfinx**: return looks pretty normally distributed. There are 5 outliers in the data according to box plot and there are no points beyond the dash line in ACF graph which indicate no linear time dependence.   
+**Veurx**: return **DOES NOT look** like normal distributed, because the histogram does not look normal and there is no straight line in Q-Q plot as well. In Box plot, it shows no outliers and ACF graph shows no linear time dependence.  
+**Veiex**:  return looks pretty normally distributed. There are no outliers in the data according to boxplot and there are no points beyond the dash line in ACF graph which indicate no linear time dependence.  
+**Vbltx**: return looks pretty normally distributed. There are 3 outliers in the data according to boxplot and there are no points beyond the dash line in ACF graph which indicate no linear time dependence.  
+**Vbisx**: return looks pretty normally distributed. There are 1 outliers in the data    according to the boxplot and there are no points beyond the dash line in ACF graph which indicate no linear time dependence.  
+**vpacx**: return looks pretty normally distributed. There are 4 outliers in the data    according to the boxplot and there are no points beyond the dash line in ACF graph which indicate no linear time dependence. 
+
++ ### **2.3 Univariate Descriptive Statistics**
+```{r}
+#
+# compute descriptive statistics
+#
+
+muhat.vals = colMeans(projectReturns.z)
+muhat.mat = as.matrix(muhat.vals)
+sd.vals = apply(projectReturns.z, 2, sd)
+skew.vals = apply(projectReturns.z, 2, skewness)
+ekurt.vals = apply(projectReturns.z, 2, kurtosis)
+cov.mat = var(projectReturns.z)
+cor.mat = cov2cor(cov.mat)
+covhat.vals = cov.mat[lower.tri(cov.mat)]
+rhohat.vals = cor.mat[lower.tri(cor.mat)]
+names(covhat.vals) <- names(rhohat.vals) <- 
+  c("vfinx,veurx","vfinx,veiex","vfinx,vbltx", "vfinx,vbisx", "vfinx,vpacx",
+    "veurx,veiex", "veurx,vbltx", "veurx,vbisx", "veurx,vpacx",
+    "veiex,vbltx", "veiex,vbisx", "veiex,vpacx",
+    "vbltx,vbisx", "vbltx,vpacx",
+    "vbisx,vpacx")
+# empirical quantiles for VaR calculations
+q.vals = apply(projectReturns.z, 2, quantile, prob=c(0.01,0.05))
+
+# display results in a table
+stats.mat = rbind(muhat.vals, 
+                  sd.vals,
+                  skew.vals,
+                  ekurt.vals,
+                  q.vals)
+rownames(stats.mat) = c("Mean", "Std Dev", "Skewness", 
+                        "Excess Kurtosis", "1% Quantile", 
+                        "5% Quantile")
+# print statistics
+kable(stats.mat)
+```
+
+### Expert Analysis:  
+According to the univariate descriptive statistics table, ,**S&P 500 index(vfinx)** has the highest average return and **Short term bond index (vbisx)** has the lowest average return. Also, **Short term bond index (vbisx)** has the lowest standard deviation. **Emerging markets fund (veiex)** has the highest standard deviation. Moreover, **Emerging markets fund (veiex)** seems most normally distributed because it has both skewness and excess kurtosis close to zero. **European Stock Index(veurx)** seems least normally distributed because it has the largest excess kurtosis away from zero.  
+
++ ### **2.4 Sharpe Ratio and BootStrap SE**
+```{r}
+## risk free rate 
+rf = 0.005/12
+
+#plot(sd.vals, muhat.vals, xlim=c(0, 0.06), ylim=c(0, 0.013),
+    # ylab="Expected Return", xlab="Standard Deviation",
+     #cex=2, pch=16, col="cornflowerblue")
+#text(sd.vals, muhat.vals, labels=colnames(projectReturns.z),
+    # pos=3)
+
+SharpeRatios = (muhat.vals - rf)/sd.vals
+
+sharpeRatio.boot = function(x, idx, risk.free) {
+  muhat = mean(x[idx])
+  sigmahat = sd(x[idx])
+  sharpeRatio = (muhat - risk.free)/sigmahat
+  
+}
+
+# compute bootstrap standard error and 95% ci for sharpe ratio
+# function to bootstrap VaR
+sharpe.vfinx.boot = boot(ret.mat[, "vfinx"], 
+                         statistic=sharpeRatio.boot, R=999, risk.free=rf)
+
+sharpe.veurx.boot = boot(ret.mat[, "veurx"], 
+                         statistic=sharpeRatio.boot, R=999, risk.free=rf)
+
+sharpe.veiex.boot = boot(ret.mat[, "veiex"], 
+                         statistic=sharpeRatio.boot, R=999, risk.free=rf)
+
+sharpe.vbltx.boot = boot(ret.mat[, "vbltx"], 
+                         statistic=sharpeRatio.boot, R=999, risk.free=rf)
+
+sharpe.vbisx.boot = boot(ret.mat[, "vbisx"], 
+                         statistic=sharpeRatio.boot, R=999, risk.free=rf)
+
+sharpe.vpacx.boot = boot(ret.mat[, "vpacx"], 
+                         statistic=sharpeRatio.boot, R=999, risk.free=rf)
+
+standard.errors = c(0.147,0.137,0.132,0.133,0.125,0.135)
+
+sharpe.chart = cbind(SharpeRatios, standard.errors)
+colnames(sharpe.chart) = c("SharpeRatios","BootStrap SE")
+rownames(sharpe.chart) = asset.fullname
+
+
+kable(sharpe.chart,escape = FALSE,)
+
+```
+
+### Expert Analysis: 
+According to the nicely table above, we can conclude **Short term bond index (vbisx)** has the highest sharpe ratios which means this asset will offer you the most optimal return and risk. The sharpe slopes are estimated fairly precise because standard errors provided by bootstrap are quite close to zero.
+
+
++ ### **2.5 Estimated Standard Errors and Confidence Intervals**  
+
+**Estimation Table**
+```{r}
+n = nrow(ret.mat)
+seMuhat = sd.vals/sqrt(n)
+seSigmahat = sd.vals/sqrt(2*n)
+seMat = cbind(muhat.vals,seMuhat,sd.vals,seSigmahat)
+colnames(seMat) = c("muhat","seMuhat","sigmahat","seSigmahat")
+rownames(seMat) = asset.fullname
+kable(seMat)
+
+```
+**95% CI for Mu**
+```{r}
+lowerMu = muhat.vals - 2 * seMuhat
+upperMu = muhat.vals + 2 * seMuhat
+widthMu = upperMu - lowerMu
+kable(cbind(lowerMu,upperMu,widthMu))
+
+```
+
+**95% CI for sigma**
+```{r}
+
+lowerSigma = sd.vals - 2 * seSigmahat
+upperSigma = sd.vals + 2 * seSigmahat
+widthSigma = upperSigma - lowerSigma
+kable((cbind(lowerSigma,upperSigma,widthSigma)))
+```
+
+### Expert Analysis: 
+First of all, let us take look at the estimated mean. Vfinx, vbltx, vpacx, are sort of precise since Semuhat is smaller than or very close to muhat. However, veurx, veiex and vbisx are not estimated very precise because of having larger semuhat than muhat. Next, let us talk about the standard deviation.The standard deviations are fairly precise due to all of the sesigmahats are smallar than sigmahats for all the stocks. Furthermore, based on the 95% confidence interval, we can conclude the estimated standard deviation is more precise than the estimated mean because the width is generally smaller for standard deviation than mean.  
+
++ ### **2.6 Annualized Return**  
+```{r}
+return.an = muhat.vals * 12
+sd.an = sd.vals * sqrt(12)
+sharpeRatios.an = (return.an - rf*12)/sd.an
+
+
+return.five = 1*(1+return.an)^5
+annual = cbind(return.an, sd.an,sharpeRatios.an,return.five)
+colnames(annual) = c("Annual cc Return","Annual SD","Annual SR","5-year Return on $1")
+rownames(annual) = asset.fullname
+kable(annual)
+```
+
+### Expert Analysis: 
+Generally speaking, the annual return is simply 12 times of the monthly return and the annual standard deviation is sqrt 12 times of the monthly standard deviation. Also, the ranking of the annualized sharpe ratios is the same as monthly sharpe ratios, but the difference between the annualized sharpe ratios becomes larger. If you invest 1$ in each of the stocks and get return every year for 5 years, after 5 years you will get $1.63 $1.19 $1.12 $1.29 $1.09 $1.31 for vfinx, veurx, veiex, vbltx, vcisx,vpacx. 
+
+
+
+
+
+
+
+
+
++ ### **2.7 Covariance Matrix and Pairwise Scatterplots**  
+```{r}
+cov.mat
+pairs(ret.mat, col="blue")
+
+```
+
+### Expert Analysis: 
+According to the graph of pair-wise scatterplots, we can conclude **Vfinx** has a positive strong linear relationship with veurx, veiex, and vpacx. **Veurx** has a positive strong linear relationship with veiex, and vpacx. **Veiex** has a positive strong linear relationship with vpacx. **Vbltx** has a positive strong linear relationship with vbisx. 
+
++ ### **2.8 Correlation Matrix and Diversification**  
+```{r}
+corrplot(cor.mat, method="ellipse")
+```
+
+### Expert Analysis: 
+From the graph of correlation matrix, (vfinx and vpacx), (veurx and vpacx), (veiex,vpacx), (vbltx and vbisx) are most highly correlated.(veurx and vbltx), (vbltx and vpacx) are least correlated. As a result, choosing least uncorrelated assets will reduce the risk the most because when the value of one asset is dropping, the other asset is unlikely to drop as well. By diversification, it will definitely reduce risk because you will not likely have all the values of all assets  to drop in the same time since there are at least two or three assets not correlated to each other. 
+
+
+## 3. Value-at-Risk Calculation
++ ### **3.1 1% and 5% VaR $100,000 over a one month investment horizon**  
+```{r}
+Value.at.Risk = function(x, p=0.05, w=100000, method=c("normal", "empirical")) {
+	method=method[1]
+  x = as.matrix(x)
+  if (method == "normal") {
+	  q = apply(x, 2, mean) + apply(x, 2, sd)*qnorm(p)
+  } else {    
+    q = apply(x, 2, quantile, p)
+  }
+	VaR = (exp(q) - 1)*w
+	VaR
+}
+
+ValueAtRisk.boot = function(x, idx, p=0.05, w=100000) {
+
+	q = mean(x[idx]) + sd(x[idx])*qnorm(p)
+	VaR = (exp(q) - 1)*w
+	VaR
+}
+
+ValueAtRisk.boot.01 = function(x, idx, p=0.01, w=100000) {
+
+	q = mean(x[idx]) + sd(x[idx])*qnorm(p)
+	VaR = (exp(q) - 1)*w
+	VaR
+}
+```
+
+```{r}
+# compute 5% and 1% normal VaR for all assets
+VaR.normal.05 = Value.at.Risk(ret.mat, p=0.05, method="normal")
+VaR.normal.01 = Value.at.Risk(ret.mat, p=0.01, method="normal")
+
+
+# Bootstrap 5%
+VaR.05.boot.vfinx = boot(ret.mat[, "vfinx"], 
+                         statistic=ValueAtRisk.boot, R=999)
+
+VaR.05.boot.veurx = boot(ret.mat[, "veurx"], 
+                         statistic=ValueAtRisk.boot, R=999)
+
+VaR.05.boot.veiex = boot(ret.mat[, "veiex"], 
+                         statistic=ValueAtRisk.boot, R=999)
+
+VaR.05.boot.vbltx = boot(ret.mat[, "vbltx"], 
+                         statistic=ValueAtRisk.boot, R=999)
+
+VaR.05.boot.vbisx = boot(ret.mat[, "vbisx"], 
+                         statistic=ValueAtRisk.boot, R=999)
+
+VaR.05.boot.vpacx = boot(ret.mat[, "vpacx"], 
+                         statistic=ValueAtRisk.boot, R=999)
+
+# Bootstrap 1%
+VaR.01.boot.vfinx = boot(ret.mat[, "vfinx"], 
+                         statistic=ValueAtRisk.boot.01, R=999)
+
+VaR.01.boot.veurx = boot(ret.mat[, "veurx"], 
+                         statistic=ValueAtRisk.boot.01, R=999)
+
+VaR.01.boot.veiex = boot(ret.mat[, "veiex"], 
+                         statistic=ValueAtRisk.boot.01, R=999)
+
+VaR.01.boot.vbltx = boot(ret.mat[, "vbltx"], 
+                         statistic=ValueAtRisk.boot.01, R=999)
+
+VaR.01.boot.vbisx = boot(ret.mat[, "vbisx"], 
+                         statistic=ValueAtRisk.boot.01, R=999)
+
+VaR.01.boot.vpacx = boot(ret.mat[, "vpacx"], 
+                         statistic=ValueAtRisk.boot.01, R=999)
+
+# 95% ci 5%
+#boot.ci(VaR.05.boot.vfinx, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.05.boot.veurx, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.05.boot.veiex, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.05.boot.vbltx, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.05.boot.vbisx, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.05.boot.vpacx, conf = 0.95, type = c("norm","perc"))
+
+#boot.ci(VaR.01.boot.vfinx, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.01.boot.veurx, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.01.boot.veiex, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.01.boot.vbltx, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.01.boot.vbisx, conf = 0.95, type = c("norm","perc"))
+#boot.ci(VaR.01.boot.vpacx, conf = 0.95, type = c("norm","perc"))
+
+ci.05 = c("(-6495,-3177)","(-7224,-4534)","(-8259, -5499)","(-4564,-2590)","(-693,-408)",
+          "(-6904, -3942)")
+
+ci.01 = c("(-9044,-4990)","(-9957,-6786)","(-11225,-7773)","(-6403,-3968 )","(-1025,-651)","(-9673,-5858 )")
+sd.error.05 = c(846,687,724,515,71.4,791)
+sd.error.01 = c(1041,788,901,633,94.5,960)
+
+VaR.chart = cbind(VaR.normal.01, VaR.normal.05)
+colnames(VaR.chart) = c("VaR 1%","VaR 5%")
+rownames(VaR.chart) = asset.fullname
+
+se.chart = cbind(sd.error.01,sd.error.05)
+colnames(se.chart) = c("Std.error 1%","Std.error 5%")
+rownames(se.chart) = asset.fullname
+
+ci.chart = cbind(ci.05,ci.01)
+colnames(ci.chart) = c("95% Confidence Interval for 5% ",
+                       "95% Confidence Interval for 1% ")
+rownames(ci.chart) = asset.fullname
+kable(VaR.chart)
+kable(se.chart)
+kable(ci.chart)
+```
+
++ ### **3.2 1% and 5% VaR $100,000 over a one year investment horizon**  
+```{r}
+VaR.an.normal.05 = Value.at.Risk(ret.mat*12, p=0.05, method="normal")
+VaR.an.normal.01 = Value.at.Risk(ret.mat*12, p=0.01, method="normal")
+
+VaR.an.chart = cbind(return.an, sd.an,VaR.an.normal.01, VaR.an.normal.05)
+colnames(VaR.an.chart) = c("Annual Return","Annual SD","VaR1%","VaR5%")
+rownames(VaR.an.chart) = asset.fullname
+
+kable(VaR.an.chart)
+```
+```{r}
+VaR.an.emp.05 = Value.at.Risk(ret.mat*12, p=0.05, method="empirical")
+VaR.an.emp.01 = Value.at.Risk(ret.mat*12, p=0.01, method="empirical")
+
+
+VaR.an.emp.chart = cbind(VaR.an.emp.01, VaR.an.emp.05)
+colnames(VaR.an.emp.chart) = c("EMP VaR1%","EMP VaR5%")
+rownames(VaR.an.emp.chart) = asset.fullname
+
+kable(VaR.an.emp.chart)
+```
+
+### Expert Analysis: 
+According to the expert calculations, for the all the assets, both the empirical 1% and 5% value at risk is smallar than the normal 1% and 5% value at risk 
+
+
+## 4. Portfolio Theory
++ ### **4.1 Monthly Global Minimum Variance Portfolio with Short Sale**  
+```{r}
+## compute global minimum variance portfolio
+gmin.port = globalMin.portfolio(muhat.vals, cov.mat,short = TRUE)
+gmin.port.ns = globalMin.portfolio(muhat.vals, cov.mat,short = FALSE)
+summary(gmin.port)
+
+
+cov.mat.simple = var(projectReturnsSimple.z)
+muhat.simple =colMeans(projectReturnsSimple.z)
+
+gmin.simple = globalMin.portfolio(muhat.simple, cov.mat.simple)
+gmin.simple.ns = globalMin.portfolio(muhat.simple, cov.mat.simple,short = FALSE)
+
+```
+
+```{r}
+
+gmin.return = gmin.port$er
+gmin.sd = gmin.port$sd
+gmin.weights = gmin.port$weights
+gmin.var = gmin.sd^2
+
+gmin.chart = rbind(0.00141, 0.0000066,0.00257)
+
+colnames(gmin.chart) = ("Monthly Returns")
+rownames(gmin.chart)= c("E[Rp]", "Var[Rp]", "SD[Rp]")
+
+gmin.chart
+plot(gmin.port)
+
+gmin.weights.mat = as.matrix(gmin.port$weights)
+
+
+```
+
+### Expert Analysis: 
+The global minimum variance portfolio has a expected return of 0.00141, and standard deviation of 0.00257. **Emerging markets fund (veiex)** has a negative weight which indicate we have to short sale this assets, but mutual funds cannot be short saled, so this global minimum variance portfolio is not replicable 
+
++ ### **4.2 Yearly Global Minimum Variance Portfolio**  
+
+```{r}
+gmin.mu.an = gmin.return *12
+gmin.sd.an = gmin.sd * sqrt(12) 
+gmin.sharpe.an = (gmin.mu.an - rf*12) / gmin.sd.an
+
+
+gmin.an.chart = rbind(gmin.mu.an, gmin.sd.an,gmin.sharpe.an)
+colnames(gmin.an.chart) = ("Annualized Returns")
+rownames(gmin.an.chart)= c("E[Rp]", "SD[Rp]", "Sharpe[Rp]")
+
+kable(gmin.an.chart)
+```
+
+### Expert Analysis: 
+Comparing the annualized return with six individual assets, we can see the annualized return of the portfolio is slightly smaller than any of the six individual assets, but the SD is much smaller than any of the six individual assets.
+
++ ### **4.3 1% and 5% VaR Portfolio with Short Sale**  
+
+```{r}
+return.p.simple = exp(gmin.return)-1
+w0 = 100000
+VaR.gmin.normal.01 = (gmin.simple$er + gmin.simple$sd * qnorm(0.01)) * w0
+VaR.gmin.normal.05 = (gmin.simple$er + gmin.simple$sd * qnorm(0.05)) * w0
+
+
+VaR.gmin.chart = cbind(VaR.gmin.normal.01,VaR.gmin.normal.05)
+rownames(VaR.gmin.chart) = ("GMV Portfolio with Short Sale")
+colnames(VaR.gmin.chart) = c("VaR1%","VaR5%")
+kable(VaR.gmin.chart)
+kable(VaR.chart)
+```
+
+### Expert Analysis: 
+
+According to the two charts above, we can conclude that Global Minimum Variance Portfolio has least absolute value of both 1% and 5% VaR comparing to all the six assets. Therefore, globe minimum variance portfolio is much safer than any one asset. 
+
++ ### **4.4 Monthly Global Minimum Variance Portfolio without Short Sale**  
+```{r}
+gmin.mu.ns = gmin.port.ns$er
+gmin.sd.ns = gmin.port.ns$sd
+gmin.an.mu.ns = gmin.mu.ns*12
+gmin.an.sd.ns = gmin.sd.ns*sqrt(12)
+gmin.sharpe.ns = (gmin.mu.ns -rf)/gmin.sd.ns
+gmin.sharpe.an.ns = (gmin.an.mu.ns -rf*12)/gmin.an.sd.ns
+plot(gmin.port.ns)
+summary(gmin.port.ns)
+
+gmin.ns.chart1 = rbind(gmin.mu.ns, gmin.sd.ns, gmin.sharpe.ns)
+gmin.ns.chart2 = rbind(gmin.an.mu.ns, gmin.an.sd.ns, gmin.sharpe.an.ns)
+gmin.ns.chart = cbind(gmin.ns.chart1,gmin.ns.chart2 )
+colnames(gmin.ns.chart) = c("Monthly Returns","Annualized Returns")
+rownames(gmin.ns.chart)= c("E[Rp]", "SD[Rp]", "Sharpe[Rp]")
+kable(gmin.ns.chart)
+
+```
+
+### Expert Analysis: 
+
+Without short-sales, we don’t have any negative weights and we should mostly hold **Short term bond index (vbisx)**. The return and sd of the portfolio without short sale are both larger than the portfolio with short sale. But the sharpe ratio is bigger for portfolio with short sales
+
+
+
+
++ ### **4.5 1% and 5% VaR Portfolio Without Short Sale**  
+```{r}
+w0 = 100000
+VaR.gmin.normal.01.ns = (gmin.simple.ns$er + gmin.simple.ns$sd * qnorm(0.01)) * w0
+VaR.gmin.normal.05.ns = (gmin.simple.ns$er + gmin.simple.ns$sd * qnorm(0.05)) * w0
+
+
+VaR.gmin.ns.chart = cbind(VaR.gmin.normal.01.ns,VaR.gmin.normal.05.ns)
+rownames(VaR.gmin.ns.chart) = ("GMV Portfolio without Short Sale")
+colnames(VaR.gmin.ns.chart) = c("VaR1%","VaR5%")
+kable(VaR.gmin.ns.chart)
+
+```
+
+### Expert Analysis: 
+The 1% and 5% VaRs are much larger without short sales than with short sales. 
+
+
+
++ ### **4.6 Efficient Portfolio Frontier**  
+```{r}
+
+ef = efficient.frontier(muhat.vals, cov.mat,alpha.min=-1, 
+                         alpha.max=1.5, nport=20)
+
+#plot six assets
+plot(ef, plot.assets=TRUE, col="blue", lwd=2)
+points(sd.vals, muhat.vals, pch=16, cex=1, col="red")
+points(gmin.port$sd, gmin.port$er, col="orange", lwd=2)
+text(0, rf, labels="rf", pos=4)
+text(gmin.port$sd, gmin.port$er,labels = "Global Min", pos=3, cex = 1)
+```
+
+
+
+### Expert Analysis: 
+According to the efficient frontier which is based on a global minimum variance portfolio and a global minimum variance portfolio with highest return of the six assets. The blue dots indicate Markowitz Bullet of twenty different combinations of efficient portfolios. The orange point represents the global minimum variance portfolio. Red dots are the six assets. 
+
+
++ ### **4.7 Tangency Portfolio**
+
+```{r}
+tan.port = tangency.portfolio(muhat.vals, cov.mat, rf)
+sharpe.tan = (tan.port$er -rf) / tan.port$sd
+sharpe.tan.an = (tan.port$er*12 - rf*12) / (tan.port$sd*sqrt(12))
+
+kable(tan.port$weights)
+plot(tan.port)
+
+tan.chart1 = rbind(tan.port$er, tan.port$sd, tan.port$sd^2,sharpe.tan)
+tan.chart2 = rbind(tan.port$er*12, tan.port$sd*sqrt(12), 
+                   ((tan.port$sd*sqrt(12))^2),sharpe.tan.an)
+tan.chart = cbind(tan.chart1,tan.chart2 )
+colnames(tan.chart) = c("Monthly Returns","Annualized Returns")
+rownames(tan.chart)= c("E[Rp]", "SD[Rp]","Var[Rp]", "Sharpe[Rp]")
+
+kable(tan.chart)
+
+```
+```{r}
+plot(ef, plot.assets=TRUE, col="blue", lwd=2)
+points(sd.vals, muhat.vals, pch=16, cex=1, col="purple")
+points(gmin.port$sd, gmin.port$er, col="orange", lwd=2)
+points(tan.port$sd, tan.port$er, col="red", lwd=2)
+text(tan.port$sd, tan.port$er, labels="Tangency", pos=3)
+text(gmin.port$sd, gmin.port$er,labels = "Global Min", pos=3, cex = 0.8)
+abline(a=rf, b=sharpe.tan, col="green", lwd=2)
+abline(v=0, h=0)
+points(0, rf, col="green", lwd=2)
+text(0, rf, labels="rf", pos=4)
+```
+
+### Expert Analysis: 
+Let us first take a look at the weight graph of the tangency portfolio, there are negative values in veurx, veiex and vbltx, but again, we can’t short-sale mutual funds.It is not replicable. Second, let us look at  the efficient portfolio frontier graph. The red dot is the Tangency portfolio on the Markowitz bullet, the orange dots are global minimum variance portfolio. The purple dots represent the six assets. The annualized return of tangency portfolio is higher than **Emerging markets fund** and **Short term bond index** . But the annualized SD is smaller than any of the six individual assets. In addition, the sharpe ratio of tangency portfolio is much larger than the sharpe ratio of any individual assets. 
+
+
++ ### **4.8 Efficient Portfolio Frontier without Short Sale**
+```{r}
+ef.ns = efficient.frontier(muhat.vals, cov.mat,alpha.min=-1, 
+                         alpha.max=1.5, nport=20,short = FALSE)
+ef.ns
+ef
+#plot six assets
+plot(ef, plot.assets=TRUE, col="blue", lwd=2)
+points(ef.ns$sd, ef.ns$er, type="b", col="red", lwd=2)
+points(sd.vals, muhat.vals, pch=16, cex=1, col="purple")
+points(gmin.port$sd, gmin.port$er, col="orange", lwd=2)
+text(0, rf, labels="rf", pos=4)
+text(gmin.port$sd, gmin.port$er,labels = "Global Min", pos=3, cex = 1)
+```
+
+### Expert Analysis: 
+ Comparing no short sale frontier with the frontier allowing short sales, we can see that if these two have the same SD, the return with short sales always greater than the return with no short sale. According to the graph and based on the calculation when target volatility is 2%. The expected return of investing in a short sale is 0.0082 comparing to 0.0064 with no short sale. Therefore the cost is around 0.0018.
+ 
++ ### **4.9 Tangency Portfolio without Short Sale**
+```{r}
+tan.port.ns = tangency.portfolio(muhat.vals, cov.mat, rf,short = FALSE)
+
+sharpe.tan.ns = (tan.port.ns$er -rf) / tan.port.ns$sd
+sharpe.tan.an.ns = (tan.port.ns$er*12 - rf*12) / (tan.port.ns$sd*sqrt(12))
+
+tan.port.ns$weights
+plot(tan.port.ns)
+
+tan.ns.chart1 = rbind(tan.port.ns$er, tan.port.ns$sd, tan.port.ns$sd^2,sharpe.tan.ns)
+tan.ns.chart2 = rbind(tan.port.ns$er*12, tan.port.ns$sd*sqrt(12), 
+                   ((tan.port.ns$sd*sqrt(12))^2),sharpe.tan.an.ns)
+tan.ns.chart = cbind(tan.ns.chart1,tan.ns.chart2 )
+colnames(tan.ns.chart) = c("Monthly Returns","Annualized Returns")
+rownames(tan.ns.chart)= c("E[Rp]", "SD[Rp]","Var[Rp]", "Sharpe[Rp]")
+
+kable(tan.ns.chart)
+kable(tan.chart)
+```
+
+### Expert Analysis: 
+A tangency portfolio with no short sale is replicable since we don’t have to short sale mutual funds anymore. Also, by comparing the tangency portfolio with short sale and with NO short sale, we can conclude that the expected return, SD, and sharpe ratio are all bigger in the tangency portfolio with short sale than without short sale
+
+## 5. Asset Allocation
++ ### **5.1 Efficient portfolio with Target Expected Return of 6% per Year**
+
+```{r}
+target.return = 0.005
+e.port.max = efficient.portfolio(muhat.vals, cov.mat, target.return,short = FALSE)
+e.port.max
+```
+
+### Expert Analysis: 
+If you want to pursue a target expected return of 6% per year(0.5% per month), you have to invest 37.7% in **S&P 500 index** , 29.9% in **Long term bond index** and 32.4% in **Short term bond index** to meet the goal. 
+
++ ### **5.2 SD and 1% 5% VaR for the 6% Efficient portfolio.**
+```{r}
+W0 = 100000
+e.port.max.simple = efficient.portfolio(muhat.simple, cov.mat.simple, 0.005,short = FALSE)
+
+
+VaR.max.01.ns = (e.port.max.simple$er + e.port.max.simple$sd * qnorm(0.01)) * w0
+VaR.max.05.ns = (e.port.max.simple$er + e.port.max.simple$sd * qnorm(0.05)) * w0
+
+
+e.port.max.simple.chart = cbind(e.port.max$sd,VaR.max.01.ns,VaR.max.05.ns)
+rownames(e.port.max.simple.chart) = ("Efficient Portfolio with 6% Target Rate")
+colnames(e.port.max.simple.chart) = c("SD","VaR1%","VaR5%")
+kable(e.port.max.simple.chart)
+
+```
+
+### Expert Analysis: 
+The SD of the portfolio is about 0.014 and with $100,000 initial investment, you have 1% chance to lose $2688 and 5% to lose $1754. 
+
++ ### **5.3 Efficient portfolio with Target Expected Return of 12% per Year**
+
+### Expert Analysis: 
+It is impossible to achieve a portfolio with target expected return of 1% per month, because the return rate is higher than any of the return rates of six assets and we can’t not short sale the mutual funds.  
+
+
+
+
